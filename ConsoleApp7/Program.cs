@@ -6,8 +6,8 @@ namespace Maze
 {
     public class ExtendingWall
     {
-        static private int FIELD_SIZE_X;
-        static private int FIELD_SIZE_Z;
+        static private int FIELD_SIZE_X = 51;
+        static private int FIELD_SIZE_Z = 51;
 
         static private int[,] CellData;
 
@@ -17,6 +17,8 @@ namespace Maze
         static private List<Cell> StartCells;
         // 現在拡張中の壁の情報を保持
         static private List<Cell> CurrentWallCells;
+        // 拡張可能方向の情報を保持
+        static private List<List<Cell>> CandidateCells;
 
         static private int[,] DebugCell;
         static private List<Cell> CellLog;
@@ -25,17 +27,20 @@ namespace Maze
 
         private static void Main()
         {
-            CellData = new int[51, 51];
+            CellData = new int[FIELD_SIZE_Z, FIELD_SIZE_X];
             Generate(CellData);
             TOJIDebug();
 
-            int count = 1;
+            DebugOutput(CellData);
+
+            int count = 0;
 
             while (true)
             {
                 Console.WriteLine("[{0}/{1}]>> ", count, CellLog.Count);
 
                 string input = Console.ReadLine();
+
                 if (input == "")
                 {
                     DebugSimulate(count);
@@ -45,16 +50,16 @@ namespace Maze
                     }
                     else
                     {
-                        count = 1;
+                        count = 0;
                     }
                 }
                 else
                 {
                     int input_num = int.Parse(input);
-                    if (0 < input_num && input_num <= CellLog.Count)
+                    if (0 <= input_num && input_num <= CellLog.Count)
                     {
-                        DebugSimulate(input_num);
                         count = input_num;
+                        DebugSimulate(input_num);
                     }
                     else
                     {
@@ -65,7 +70,7 @@ namespace Maze
                         }
                         else
                         {
-                            count = 1;
+                            count = 0;
                         }
                     }
                 }
@@ -82,6 +87,8 @@ namespace Maze
 
             StartCells = new List<Maze.Cell>();
             CurrentWallCells = new List<Maze.Cell>();
+            CandidateCells = new List<List<Cell>>();
+
             Random = new System.Random();
 
             DebugCell = new int[FIELD_SIZE_Z, FIELD_SIZE_X];
@@ -132,6 +139,8 @@ namespace Maze
                 {
                     //拡張中の壁の情報を初期化
                     CurrentWallCells.Clear();
+                    CandidateCells.Clear();
+                    CurrentWallCells.Add(new Cell(x, z));
                     ExtendWall(x, z);
                 }
             }
@@ -141,74 +150,87 @@ namespace Maze
         // 指定座標から壁を生成拡張する
         static private void ExtendWall(int x, int z)
         {
-            // 伸ばすことができる方向(1マス先が通路で2マス先まで範囲内)
-            // 2マス先が壁で自分自身の場合は、伸ばせない
-            var directions = new List<DEFINITION.DIRECTION>();
-            if (CellData[z - 1, x] == DEFINITION.TYPE_PATH && !IsCurrentWall(x, z - 2))
-                directions.Add(DEFINITION.DIRECTION.UP);
-            if (CellData[z, x + 1] == DEFINITION.TYPE_PATH && !IsCurrentWall(x + 2, z))
-                directions.Add(DEFINITION.DIRECTION.RIGHT);
-            if (CellData[z + 1, x] == DEFINITION.TYPE_PATH && !IsCurrentWall(x, z + 2))
-                directions.Add(DEFINITION.DIRECTION.DOWN);
-            if (CellData[z, x - 1] == DEFINITION.TYPE_PATH && !IsCurrentWall(x - 2, z))
-                directions.Add(DEFINITION.DIRECTION.LEFT);
+            // 探索位置に初めて到達(次のセルの方向が記録されていない)
+            if (CurrentWallCells.Count != CandidateCells.Count)
+            {
+                List<Cell> candidate_cells = new List<Cell>();
+                // 伸ばすことができる方向のセル(1マス先が通路で2マス先まで範囲内)
+                // 2マス先が壁で自分自身の場合は、伸ばせない
+                if (CellData[z - 1, x] == DEFINITION.TYPE_PATH && !IsCurrentWall(x, z - 2))
+                    candidate_cells.Add(new Cell(x, z - 2));
+                if (CellData[z, x + 1] == DEFINITION.TYPE_PATH && !IsCurrentWall(x + 2, z))
+                    candidate_cells.Add(new Cell(x + 2, z));
+                if (CellData[z + 1, x] == DEFINITION.TYPE_PATH && !IsCurrentWall(x, z + 2))
+                    candidate_cells.Add(new Cell(x, z + 2));
+                if (CellData[z, x - 1] == DEFINITION.TYPE_PATH && !IsCurrentWall(x - 2, z))
+                    candidate_cells.Add(new Cell(x - 2, z));
+
+                CandidateCells.Add(candidate_cells);
+            }
+
+            //現在のセルでの候補方向を選択
+            var current_candidate = CandidateCells[CandidateCells.Count - 1];
 
             //ランダムに伸ばす(2マス)
-            if (directions.Count > 0)
+            if (current_candidate.Count > 0)
             {
-                // 壁の作成(この地点から壁を伸ばす)
-                SetWall(x, z);
-
                 // 伸ばす先が通路の場合は拡張を続ける
                 bool isPath = false;
-                int dirIndex = Random.Next(directions.Count);
-                switch (directions[dirIndex])
-                {
-                    case DEFINITION.DIRECTION.UP:
-                        isPath = (CellData[z - 2, x] == DEFINITION.TYPE_PATH);
-                        SetWall(x, --z);
-                        SetWall(x, --z);
-                        break;
-                    case DEFINITION.DIRECTION.RIGHT:
-                        isPath = (CellData[z, x + 2] == DEFINITION.TYPE_PATH);
-                        SetWall(++x, z);
-                        SetWall(++x, z);
-                        break;
-                    case DEFINITION.DIRECTION.DOWN:
-                        isPath = (CellData[z + 2, x] == DEFINITION.TYPE_PATH);
-                        SetWall(x, ++z);
-                        SetWall(x, ++z);
-                        break;
-                    case DEFINITION.DIRECTION.LEFT:
-                        isPath = (CellData[z, x - 2] == DEFINITION.TYPE_PATH);
-                        SetWall(--x, z);
-                        SetWall(--x, z);
-                        break;
-                }
+                int dirIndex = Random.Next(current_candidate.Count);
+
+                int cell_x = current_candidate[dirIndex].X;
+                int cell_z = current_candidate[dirIndex].Z;
+
+                isPath = (CellData[cell_z, cell_x] == DEFINITION.TYPE_PATH);
+                CandidateCells[CandidateCells.Count - 1].RemoveAt(dirIndex);
+                CurrentWallCells.Add(new Cell(cell_x, cell_z));
+
                 if (isPath)
                 {
                     // 既存の壁に接続できていない場合は拡張続行
-                    ExtendWall(x, z);
+                    ExtendWall(cell_x, cell_z);
+                }
+                else
+                {
+                    //壁を作成する
+                    SetWall();
+                    //DebugOutput(CellData);
                 }
             }
             else
             {
                 // すべて現在拡張中の壁にぶつかる場合、バックして再開
                 Cell beforeCell = CurrentWallCells[CurrentWallCells.Count - 1];
+                CandidateCells.RemoveAt(CandidateCells.Count - 1);
                 CurrentWallCells.RemoveAt(CurrentWallCells.Count - 1);
                 ExtendWall(beforeCell.X, beforeCell.Z);
             }
         }
 
-        //壁を拡張する
-        static private void SetWall(int x, int z)
+        //壁を拡張する(再帰)
+        static private void SetWall()
         {
-            CellLog.Add(new Cell(x, z));
-            CellData[z, x] = DEFINITION.TYPE_WALL;
-            if (x % 2 == 0 && z % 2 == 0)
-            {
-                CurrentWallCells.Add(new Cell(x, z));
-            }
+            //現在の座標を取得
+            int current_x = CurrentWallCells[0].X;
+            int current_z = CurrentWallCells[0].Z;
+
+            //現在の座標に壁を作成
+            CellData[current_z, current_x] = DEFINITION.TYPE_WALL;
+            CellLog.Add(new Cell(current_x, current_z));
+
+            //拡張した方向を取得
+            int diff_x = (CurrentWallCells[1].X - current_x) / 2;
+            int diff_z = (CurrentWallCells[1].Z - current_z) / 2;
+
+            //拡張した方向の奇数セルに壁を作成
+            CellData[current_z + diff_z, current_x + diff_x] = DEFINITION.TYPE_WALL;
+            CellLog.Add(new Cell(current_x + diff_x, current_z + diff_z));
+
+            //壁の作成が完了したので対象セルを削除
+            CurrentWallCells.RemoveAt(0);
+
+            //次のセルが取得できる場合関数を実行する
+            if (CurrentWallCells.Count > 1) SetWall();
         }
 
         static private bool IsCurrentWall(int x, int z)
@@ -251,7 +273,6 @@ namespace Maze
             }
         }
 
-
         static private void DebugSimulate(int count)
         {
             for (int z = 0; z < FIELD_SIZE_Z; z++)
@@ -274,9 +295,10 @@ namespace Maze
             {
                 DebugCell[CellLog[i].Z, CellLog[i].X] = DEFINITION.TYPE_WALL;
             }
-            DebugCell[CellLog[count].Z, CellLog[count].X] = 3;
-
-
+            if (count < CellLog.Count)
+            {
+                DebugCell[CellLog[count].Z, CellLog[count].X] = 3;
+            }
 
             foreach (var e in Toji)
             {
@@ -329,13 +351,5 @@ namespace Maze
     {
         public const int TYPE_PATH = 0;
         public const int TYPE_WALL = 1;
-
-        public enum DIRECTION
-        {
-            UP = 0,
-            RIGHT = 1,
-            DOWN = 2,
-            LEFT = 3
-        }
     }
 }
