@@ -1,12 +1,13 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Maze
 {
     public class ExtendingWall
     {
-        static private int FIELD_SIZE_X = 51;
+        static private int FIELD_SIZE_X = 81;
         static private int FIELD_SIZE_Z = 51;
 
         static private int[,] CellData;
@@ -25,57 +26,22 @@ namespace Maze
 
         static private List<Cell> Toji;
 
+        //Serch
+        static private int[,] SearchCellData;
+
         private static void Main()
         {
             CellData = new int[FIELD_SIZE_Z, FIELD_SIZE_X];
             Generate(CellData);
-            TOJIDebug();
+            //TOJIDebug();
 
             DebugOutput(CellData);
+            //DebugPreview();
 
-            int count = 0;
-
-            while (true)
-            {
-                Console.WriteLine("[{0}/{1}]>> ", count, CellLog.Count);
-
-                string input = Console.ReadLine();
-
-                if (input == "")
-                {
-                    DebugSimulate(count);
-                    if (count < CellLog.Count)
-                    {
-                        count++;
-                    }
-                    else
-                    {
-                        count = 0;
-                    }
-                }
-                else
-                {
-                    int input_num = int.Parse(input);
-                    if (0 <= input_num && input_num <= CellLog.Count)
-                    {
-                        count = input_num;
-                        DebugSimulate(input_num);
-                    }
-                    else
-                    {
-                        DebugSimulate(count);
-                        if (count < CellLog.Count)
-                        {
-                            count++;
-                        }
-                        else
-                        {
-                            count = 0;
-                        }
-                    }
-                }
-                DebugOutput(DebugCell);
-            }
+            SetSGPoint(CellData);
+            Console.WriteLine();
+            DebugOutput(SearchCellData);
+            //Console.ReadKey();
         }
 
         static private void Initialization(int[,] cell_data)
@@ -141,15 +107,23 @@ namespace Maze
                     CurrentWallCells.Clear();
                     CandidateCells.Clear();
                     CurrentWallCells.Add(new Cell(x, z));
-                    ExtendWall(x, z);
+
+                    while (true)
+                    {
+                        cell = ExtendWall(cell);
+                        if (cell.X == -1 && cell.Z == -1) break;
+                    }
                 }
             }
             return CellData;
         }
 
         // 指定座標から壁を生成拡張する
-        static private void ExtendWall(int x, int z)
+        static private Cell ExtendWall(Cell cell)
         {
+            int x = cell.X;
+            int z = cell.Z;
+
             // 探索位置に初めて到達(次のセルの方向が記録されていない)
             if (CurrentWallCells.Count != CandidateCells.Count)
             {
@@ -188,13 +162,14 @@ namespace Maze
                 if (isPath)
                 {
                     // 既存の壁に接続できていない場合は拡張続行
-                    ExtendWall(cell_x, cell_z);
+                    //ExtendWall(cell_x, cell_z);
+                    return new Cell(cell_x, cell_z);
                 }
                 else
                 {
-                    //壁を作成する
-                    SetWall();
-                    //DebugOutput(CellData);
+                    //次のセルが取得できる場合関数を実行する
+                    while (CurrentWallCells.Count > 1) SetWall();
+                    return new Cell(-1, -1);
                 }
             }
             else
@@ -203,7 +178,7 @@ namespace Maze
                 Cell beforeCell = CurrentWallCells[CurrentWallCells.Count - 1];
                 CandidateCells.RemoveAt(CandidateCells.Count - 1);
                 CurrentWallCells.RemoveAt(CurrentWallCells.Count - 1);
-                ExtendWall(beforeCell.X, beforeCell.Z);
+                return new Cell(beforeCell.X, beforeCell.Z);
             }
         }
 
@@ -228,9 +203,6 @@ namespace Maze
 
             //壁の作成が完了したので対象セルを削除
             CurrentWallCells.RemoveAt(0);
-
-            //次のセルが取得できる場合関数を実行する
-            if (CurrentWallCells.Count > 1) SetWall();
         }
 
         static private bool IsCurrentWall(int x, int z)
@@ -254,19 +226,10 @@ namespace Maze
                 {
                     if (x % 2 == 1 && z % 2 == 1)
                     {
-                        if (CellData[z - 1, x] == DEFINITION.TYPE_WALL)
+                        if (CellData[z - 1, x] == DEFINITION.TYPE_WALL && CellData[z, x + 1] == DEFINITION.TYPE_WALL && CellData[z + 1, x] == DEFINITION.TYPE_WALL && CellData[z, x - 1] == DEFINITION.TYPE_WALL)
                         {
-                            if (CellData[z, x + 1] == DEFINITION.TYPE_WALL)
-                            {
-                                if (CellData[z + 1, x] == DEFINITION.TYPE_WALL)
-                                {
-                                    if (CellData[z, x - 1] == DEFINITION.TYPE_WALL)
-                                    {
-                                        Console.WriteLine("閉じた領域検出: " + "[" + z + "," + x + "]");
-                                        Toji.Add(new Cell(x, z));
-                                    }
-                                }
-                            }
+                            Console.WriteLine("閉じた領域検出: " + "[" + z + "," + x + "]");
+                            Toji.Add(new Cell(x, z));
                         }
                     }
                 }
@@ -306,6 +269,53 @@ namespace Maze
             }
         }
 
+        static private void DebugPreview()
+        {
+            int count = 0;
+
+            while (true)
+            {
+                Console.WriteLine("[{0}/{1}]>> ", count, CellLog.Count);
+
+                string input = Console.ReadLine();
+
+                if (input == "")
+                {
+                    DebugSimulate(count);
+                    if (count < CellLog.Count)
+                    {
+                        count++;
+                    }
+                    else
+                    {
+                        count = 0;
+                    }
+                }
+                else
+                {
+                    int input_num = int.Parse(input);
+                    if (0 <= input_num && input_num <= CellLog.Count)
+                    {
+                        count = input_num;
+                        DebugSimulate(input_num);
+                    }
+                    else
+                    {
+                        DebugSimulate(count);
+                        if (count < CellLog.Count)
+                        {
+                            count++;
+                        }
+                        else
+                        {
+                            count = 0;
+                        }
+                    }
+                }
+                DebugOutput(DebugCell);
+            }
+        }
+
         static private void DebugOutput(int[,] cell_data)
         {
             for (int z = 0; z < FIELD_SIZE_Z; z++)
@@ -332,6 +342,195 @@ namespace Maze
             }
         }
 
+        static private int[,] SetSGPoint(int[,] cell_data)
+        {
+            int field_x = cell_data.GetLength(1);
+            int field_z = cell_data.GetLength(0);
+
+            SearchCellData = new int[field_z, field_x];
+            Array.Copy(cell_data, SearchCellData, cell_data.Length);
+
+            List<Cell> NodeList = new List<Cell>();
+            List<Cell> BatchWallCells = new List<Cell>(); //あとで壁にするセルを格納
+
+            do
+            {
+                NodeList.Clear();
+                BatchWallCells.Clear();
+
+                //nodeを取得
+                for (int z = 1; z < field_z; z += 2)
+                {
+                    for (int x = 1; x < field_x; x += 2)
+                    {
+                        if (GetEdgeCount(x, z) >= 3) NodeList.Add(new Cell(x, z));
+                    }
+                }
+
+                //各ノードの処理
+                foreach (var node in NodeList)
+                {
+                    int root_x = node.X;
+                    int root_z = node.Z;
+
+                    List<List<Cell>> edges = new List<List<Cell>>();
+                    List<Cell>[] edgeCells = new List<Cell>[4];
+
+                    //上方向
+                    if (SearchCellData[root_z - 1, root_x] == DEFINITION.TYPE_PATH)
+                    {
+                        edgeCells[0] = new List<Cell>();
+                        GetEdgeCells(root_x, root_z, root_x, root_z - 1, edgeCells[0]);
+                        edges.Add(edgeCells[0]);
+                    }
+                    //右方向
+                    if (SearchCellData[root_z, root_x + 1] == DEFINITION.TYPE_PATH)
+                    {
+                        edgeCells[1] = new List<Cell>();
+                        GetEdgeCells(root_x, root_z, root_x + 1, root_z, edgeCells[1]);
+                        edges.Add(edgeCells[1]);
+                    }
+                    //下方向
+                    if (SearchCellData[root_z + 1, root_x] == DEFINITION.TYPE_PATH)
+                    {
+                        edgeCells[2] = new List<Cell>();
+                        GetEdgeCells(root_x, root_z, root_x, root_z + 1, edgeCells[2]);
+                        edges.Add(edgeCells[2]);
+                    }
+                    //左方向
+                    if (SearchCellData[root_z, root_x - 1] == DEFINITION.TYPE_PATH)
+                    {
+                        edgeCells[3] = new List<Cell>();
+                        GetEdgeCells(root_x, root_z, root_x - 1, root_z, edgeCells[3]);
+                        edges.Add(edgeCells[3]);
+                    }
+
+                    List<List<Cell>> pickupEdge = new List<List<Cell>>();
+
+                    //接続するノードの数を取得
+                    int nodeCount = edges.Count(edge => edge.Count == 0);
+                    switch (nodeCount)
+                    {
+                        case 4:
+                        case 3:
+                        case 2:
+                            //ノードに接続しないエッジをすべて壁にする
+                            pickupEdge = edges.Where(edge => edge.Count > 0).ToList();
+                            foreach (var edge in pickupEdge)
+                                foreach (var cell in edge)
+                                    BatchWallCells.Add(new Cell(cell.X, cell.Z));
+                            break;
+                        case 1:
+                            //最も長いエッジのみ残す
+                            pickupEdge = edges.OrderBy(edge => -edge.Count).Skip(1).ToList();
+                            foreach (var edge in pickupEdge)
+                                foreach (var cell in edge)
+                                    BatchWallCells.Add(new Cell(cell.X, cell.Z));
+                            break;
+                        case 0:
+                            //上位2つのエッジのみ残す
+                            pickupEdge = edges.OrderBy(edge => -edge.Count).Skip(2).ToList();
+                            foreach (var edge in pickupEdge)
+                                foreach (var cell in edge)
+                                    BatchWallCells.Add(new Cell(cell.X, cell.Z));
+                            break;
+                    }
+                }
+
+                foreach (var cell in BatchWallCells)
+                {
+                    SearchCellData[cell.Z, cell.X] = DEFINITION.TYPE_WALL;
+                    //SearchCellData[cell.Z, cell.X] = 2;
+                }
+                //DebugOutput(SearchCellData);
+            } while (NodeList.Count > 1);
+
+            return SearchCellData;
+        }
+
+        static private void GetEdgeCells(int prev_x, int prev_z, int current_x, int current_z, List<Cell> edgeCells)
+        {
+            while (true)
+            {
+                int count = GetEdgeCount(current_x, current_z);
+                if (count >= 3)
+                {
+                    edgeCells.Clear();
+                    break;
+                }
+                if (count == 2)
+                {
+                    //上方向
+                    if (SearchCellData[current_z - 1, current_x] == DEFINITION.TYPE_PATH)
+                    {
+                        //前回のセルじゃない時
+                        if (prev_z != current_z - 1 || prev_x != current_x)
+                        {
+                            edgeCells.Add(new Cell(current_x, current_z));
+                            prev_x = current_x; prev_z = current_z;
+                            current_z = current_z - 1;
+                            continue;
+                        }
+                    }
+
+                    //右方向
+                    if (SearchCellData[current_z, current_x + 1] == DEFINITION.TYPE_PATH)
+                    {
+                        //前回のセルじゃない時
+                        if (prev_z != current_z || prev_x != current_x + 1)
+                        {
+                            edgeCells.Add(new Cell(current_x, current_z));
+                            prev_x = current_x; prev_z = current_z;
+                            current_x = current_x + 1;
+                            continue;
+                        }
+                    }
+
+                    //下方向
+                    if (SearchCellData[current_z + 1, current_x] == DEFINITION.TYPE_PATH)
+                    {
+                        //前回のセルじゃない時
+                        if (prev_z != current_z + 1 || prev_x != current_x)
+                        {
+                            edgeCells.Add(new Cell(current_x, current_z));
+                            prev_x = current_x; prev_z = current_z;
+                            current_z = current_z + 1;
+                            continue;
+                        }
+                    }
+
+                    //左方向
+                    if (SearchCellData[current_z, current_x - 1] == DEFINITION.TYPE_PATH)
+                    {
+                        //前回のセルじゃない時
+                        if (prev_z != current_z || prev_x != current_x - 1)
+                        {
+                            edgeCells.Add(new Cell(current_x, current_z));
+                            prev_x = current_x; prev_z = current_z;
+                            current_x = current_x - 1;
+                            continue;
+                        }
+                    }
+                }
+                if (count == 1)
+                {
+                    edgeCells.Add(new Cell(current_x, current_z));
+                    break;
+                }
+            }
+        }
+
+        static private int GetEdgeCount(int x, int z)
+        {
+            int count = 0;
+            if (SearchCellData[z - 1, x] == DEFINITION.TYPE_PATH) count++;
+            if (SearchCellData[z, x + 1] == DEFINITION.TYPE_PATH) count++;
+            if (SearchCellData[z + 1, x] == DEFINITION.TYPE_PATH) count++;
+            if (SearchCellData[z, x - 1] == DEFINITION.TYPE_PATH) count++;
+
+            return count;
+        }
+
     }
 
     public class Cell
@@ -341,8 +540,8 @@ namespace Maze
 
         public Cell(int x, int z)
         {
-            this.X = x;
-            this.Z = z;
+            X = x;
+            Z = z;
         }
     }
 
